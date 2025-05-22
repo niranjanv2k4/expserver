@@ -11,6 +11,15 @@
 #define BUFF_SIZE 100000
 #define MAX_ACCEPT_BACKLOG 5
 
+void strrev(char *s){
+    int n = strlen(s);
+    for(int i = 0; i<n/2; i++){
+        char temp = s[i];
+        s[i]=s[n-1-i];
+        s[n-1-i]=temp;
+    }
+}
+
 int main(){
 
     int listen_socket_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -33,5 +42,30 @@ int main(){
 
     int conn_sock_fd = accept(listen_socket_fd, (struct sockaddr *)&client_addr, &client_addr_len);
     printf("[INFO] Client connected to server\n");
+
+    while(1){
+
+        char buff[BUFF_SIZE];
+        memset(buff, 0, BUFF_SIZE);
+
+        ssize_t read_n = recv(conn_sock_fd, buff, sizeof(buff), 0);
+
+        if(read_n<0){
+            printf("[INFO] Error occured. Closing server\n");
+            close(conn_sock_fd);
+            exit(1);
+        }
+        if(read_n==0){
+            printf("[INFO] Client disconnected. Closing server\n");
+            close(conn_sock_fd);
+            exit(1);
+        }
+
+        printf("[Client msg] %s\n", buff);
+
+        strrev(buff);
+
+        send(conn_sock_fd, buff, read_n, 0);
+    }
 
 }
