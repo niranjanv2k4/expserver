@@ -40,32 +40,34 @@ int main(){
     struct sockaddr_in client_addr;
     socklen_t client_addr_len;
 
-    int conn_sock_fd = accept(listen_socket_fd, (struct sockaddr *)&client_addr, &client_addr_len);
-    printf("[INFO] Client connected to server\n");
-
     while(1){
+        int conn_sock_fd = accept(listen_socket_fd, (struct sockaddr *)&client_addr, &client_addr_len);
+        printf("[INFO] Client connected to server\n");
 
-        char buff[BUFF_SIZE];
-        memset(buff, 0, BUFF_SIZE);
+        while(1){
 
-        ssize_t read_n = recv(conn_sock_fd, buff, sizeof(buff), 0);
+            char buff[BUFF_SIZE];
+            memset(buff, 0, BUFF_SIZE);
 
-        if(read_n<0){
-            printf("[INFO] Error occured. Closing server\n");
-            close(conn_sock_fd);
-            exit(1);
+            ssize_t read_n = recv(conn_sock_fd, buff, sizeof(buff), 0);
+
+            if(read_n<0){
+                printf("[INFO] Error occured. Closing server\n");
+                close(conn_sock_fd);
+                exit(1);
+            }
+            if(read_n==0){
+                printf("[INFO] Client disconnected. Closing server\n");
+                close(conn_sock_fd);
+                break;
+            }
+
+            printf("[CLIENT MESSAGE] %s\n", buff);
+
+            strrev(buff);
+
+            send(conn_sock_fd, buff, read_n, 0);
         }
-        if(read_n==0){
-            printf("[INFO] Client disconnected. Closing server\n");
-            close(conn_sock_fd);
-            exit(1);
-        }
-
-        printf("[Client msg] %s\n", buff);
-
-        strrev(buff);
-
-        send(conn_sock_fd, buff, read_n, 0);
     }
-
+    return 0;
 }
