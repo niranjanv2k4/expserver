@@ -49,7 +49,7 @@ int main(){
             exit(1);
         }
 
-        printf("[SERVER MESSAGE] %s\n", buff);
+        printf("[SERVER MESSAGE] %s", buff);
 
     }
 
