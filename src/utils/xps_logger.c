@@ -1,4 +1,5 @@
 #include "../xps.h"
+#include <stdarg.h>
 
 void logger(xps_log_level_t level, const char *function_name, const char *format_string, ...) {
   char *XPS_DEBUG = getenv("XPS_DEBUG");
