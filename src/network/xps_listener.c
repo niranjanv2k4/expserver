@@ -1,6 +1,8 @@
 #include"../xps.h"
 
-xps_listener_t* xps_listener_create(int epoll_fd, const char *host, u_int port){
+void listener_connection_handler(void *ptr);
+
+xps_listener_t* xps_listener_create(xps_core_t *core, const char *host, u_int port){
     assert(host!=NULL);
     assert(is_valid_port(port));
 
@@ -50,14 +52,19 @@ xps_listener_t* xps_listener_create(int epoll_fd, const char *host, u_int port){
         return NULL;
     }
 
-    listener->epoll_fd = epoll_fd;
+    listener->core = core;
     listener->host = host;
     listener->port = port;
     listener->sock_fd = sock_fd;
 
-    xps_loop_attach(epoll_fd, sock_fd, EPOLLIN);
+    if(xps_loop_attach(core->loop, sock_fd, EPOLLIN, listener, listener_connection_handler)==E_FAIL){
+        logger(LOG_ERROR, "xps_listener_create()", "falied to attach to loop");
+        free(listener);
+        close(sock_fd);
+        return NULL;
+    }
 
-    vec_push(&listeners, listener);
+    vec_push(&(core->listeners), listener);
 
     logger(LOG_DEBUG, "xps_listener_create()", "created listener port on %d", port);
 
@@ -67,13 +74,13 @@ xps_listener_t* xps_listener_create(int epoll_fd, const char *host, u_int port){
 void xps_listener_destroy(xps_listener_t *listener){
 
     assert(listener!=NULL);
+    
+    xps_loop_detach(listener->core->loop, listener->sock_fd);
 
-    xps_loop_detach(listener->epoll_fd, listener->sock_fd);
-
-    for(int i = 0; i<listeners.length; i++){
-        xps_listener_t *curr = listeners.data[i];
+    for(int i = 0; i<listener->core->listeners.length; i++){
+        xps_listener_t *curr = listener->core->listeners.data[i];
         if(curr==listener){
-            listeners.data[i]=NULL;
+            listener->core->listeners.data[i]=NULL;
             break;
         }
     }
@@ -85,8 +92,9 @@ void xps_listener_destroy(xps_listener_t *listener){
     free(listener);
 }
 
-void xps_listener_connection_handler(xps_listener_t *listener){
-    assert(listener!=NULL);
+void listener_connection_handler(void *ptr){
+    assert(ptr!=NULL);
+    xps_listener_t *listener = ptr;
 
     struct sockaddr conn_addr;
     socklen_t conn_addr_len = sizeof(conn_addr);
@@ -98,7 +106,7 @@ void xps_listener_connection_handler(xps_listener_t *listener){
         return;
     }
 
-    xps_connection_t *client = xps_connection_create(listener->epoll_fd, conn_sock_fd);
+    xps_connection_t *client = xps_connection_create(listener->core, conn_sock_fd, listener);
 
     if(client==NULL){
         logger(LOG_ERROR, "xps_listener_connection_handler()", "xps_connection_create() failed");

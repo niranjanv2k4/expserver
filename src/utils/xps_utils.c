@@ -40,16 +40,16 @@ int make_socket_non_blocking(u_int sock_fd){
     if(flags<0){
         logger(LOG_ERROR, "make_socket_non_blocking()", "failed to get flags");
         perror("Error message");
-        return -1;
+        return E_FAIL;
     }
 
     if(fcntl(sock_fd, F_SETFL, flags | O_NONBLOCK)<0){
         logger(LOG_ERROR, "make_socket_non_blocking()", "failed to set flags");
         perror("Error message");
-        return -1;
+        return E_FAIL;
     }
 
-    return 0;
+    return E_SUCCESS;
 }
 
 char *get_remote_ip(u_int sock_fd){
