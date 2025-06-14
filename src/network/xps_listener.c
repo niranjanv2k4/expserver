@@ -57,7 +57,7 @@ xps_listener_t* xps_listener_create(xps_core_t *core, const char *host, u_int po
     listener->port = port;
     listener->sock_fd = sock_fd;
 
-    if(xps_loop_attach(core->loop, sock_fd, EPOLLIN, listener, listener_connection_handler)==E_FAIL){
+    if(xps_loop_attach(core->loop, sock_fd, EPOLLIN, listener, listener_connection_handler, NULL, NULL)==E_FAIL){
         logger(LOG_ERROR, "xps_listener_create()", "falied to attach to loop");
         free(listener);
         close(sock_fd);
@@ -102,6 +102,12 @@ void listener_connection_handler(void *ptr){
     int conn_sock_fd = accept(listener->sock_fd, (struct sockaddr *)&conn_addr, &conn_addr_len);
     if(conn_sock_fd<0){
         logger(LOG_ERROR, "xps_listener_connection_handler()", "accept() failed");
+        perror("Error message");
+        return;
+    }
+
+    if(make_socket_non_blocking(conn_sock_fd)<0){
+        logger(LOG_ERROR, "listener_connection_handler()", "Failed to change to non-blocking");
         perror("Error message");
         return;
     }

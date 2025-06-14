@@ -1,6 +1,6 @@
 #include "../xps.h"
 
-loop_event_t *loop_event_create(u_int fd, void *ptr, xps_handler_t read_cb){
+loop_event_t *loop_event_create(u_int fd, void *ptr, xps_handler_t read_cb, xps_handler_t write_cb, xps_handler_t close_cb){
     assert(ptr!=NULL);
 
     loop_event_t *event = malloc(sizeof(loop_event_t));
@@ -12,6 +12,8 @@ loop_event_t *loop_event_create(u_int fd, void *ptr, xps_handler_t read_cb){
     event->fd = fd;
     event->ptr = ptr;
     event->read_cb = read_cb;
+    event->write_cb = write_cb;
+    event->close_cb = close_cb;
 
     logger(LOG_DEBUG, "loop_event_create()", "event created for fd %d", fd);
     return event;
@@ -65,11 +67,11 @@ void xps_loop_destroy(xps_loop_t *loop){
     free(loop);
 }
 
-int xps_loop_attach(xps_loop_t *loop, u_int fd, int event_flags, void *ptr, xps_handler_t read_cb){
+int xps_loop_attach(xps_loop_t *loop, u_int fd, int event_flags, void *ptr, xps_handler_t read_cb, xps_handler_t write_cb, xps_handler_t close_cb){
     assert(loop!=NULL);
     assert(ptr!=NULL);
 
-    loop_event_t *loop_event = loop_event_create(fd, ptr, read_cb);
+    loop_event_t *loop_event = loop_event_create(fd, ptr, read_cb, write_cb, close_cb);
     if(loop_event==NULL){
         logger(LOG_ERROR, "xps_loop_attach()", "loop_event_create() failed");
         perror("Error message");
@@ -121,7 +123,6 @@ int xps_loop_detach(xps_loop_t *loop, u_int fd){
 
 void xps_loop_run(xps_loop_t *loop){
     assert(loop!=NULL);
-
     while(1){
         logger(LOG_DEBUG, "xps_loop_run()", "epoll wait");
         int n_events = epoll_wait(loop->epoll_fd, loop->epoll_events, MAX_EPOLL_EVENTS, -1);
@@ -150,10 +151,26 @@ void xps_loop_run(xps_loop_t *loop){
                 continue;
             }
 
+            if(curr_epoll_event.events & (EPOLLERR | EPOLLHUP)){
+                logger(LOG_DEBUG, "handle_epoll_events()", "EVENT / close");
+                if(curr_event!=NULL && curr_event->close_cb!=NULL){
+                    curr_event->close_cb(curr_event->ptr);
+                }
+                continue;
+            }
+
             if(curr_epoll_event.events & EPOLLIN){
                 logger(LOG_DEBUG, "handle_epoll_events()", "EVENT / read");
-                if(curr_event->read_cb!=NULL){
+                if(curr_event!=NULL && curr_event->read_cb!=NULL){
                     curr_event->read_cb(curr_event->ptr);
+                }
+                continue;
+            }
+
+            if(curr_epoll_event.events & EPOLLOUT){
+                logger(LOG_DEBUG, "handle_epoll_events()", "EVENT / write");
+                if(curr_event!=NULL && curr_event->write_cb!=NULL){
+                    curr_event->write_cb(curr_event->ptr);
                 }
             }
         }

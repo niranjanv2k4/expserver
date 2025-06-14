@@ -7,7 +7,7 @@ void sigint_handler(int signum);
 int main(){
 
     signal(SIGINT, sigint_handler);
-    // printf("main->");
+    
     core = xps_core_create();
 
     xps_core_start(core);

@@ -2,6 +2,8 @@
 
 
 void connection_loop_read_handler(void *ptr);
+void connection_loop_write_handler(void *ptr);
+void connection_loop_close_handler(void *ptr);
 
 void strrev(char *s){
     int n = strlen(s)-1;
@@ -25,8 +27,9 @@ xps_connection_t *xps_connection_create(xps_core_t *core, u_int sock_fd, xps_lis
     connection->sock_fd = sock_fd;
     connection->listener = NULL;
     connection->remote_ip = get_remote_ip(sock_fd);
+    connection->write_buff_list = xps_buffer_list_create();
 
-    xps_loop_attach(core->loop, sock_fd, EPOLLIN, connection, connection_loop_read_handler);
+    xps_loop_attach(core->loop, sock_fd, EPOLLIN | EPOLLOUT, connection, connection_loop_read_handler, connection_loop_write_handler, connection_loop_close_handler);
 
     vec_push(&(core->connections), connection);
 
@@ -51,50 +54,88 @@ void xps_connection_destroy(xps_connection_t *connection){
 
     xps_loop_detach(connection->core->loop, connection->sock_fd);
     close(connection->sock_fd);
-    free(connection->remote_ip);
     free(connection);
 
     logger(LOG_DEBUG, "xps_connection_destroy()", "destroyed connection");
 }
 
 
-/*With the connection instances attached to the epoll, we will get notification from the event loop if there is a read event. To handle this, we’ll create a function xps_connection_read_handler()*/
 void connection_loop_read_handler(void *ptr){
     assert(ptr!=NULL);
     xps_connection_t *connection = ptr;
 
-    char buff[DEFAULT_BUFFER_SIZE];
-    long read_n = recv(connection->sock_fd, buff, sizeof(buff), 0);
+    xps_buffer_t *buffer = xps_buffer_create(DEFAULT_BUFFER_SIZE, 0, NULL);
+    if(buffer==NULL){
+        logger(LOG_ERROR, "connection_loop_read_handler()", "xps_buffer_create() failed");
+        perror("Error message");
+        return;
+    }
+    long read_n = recv(connection->sock_fd, buffer->data, buffer->size, 0);
 
     if(read_n<0){
         logger(LOG_ERROR, "xps_connection_read_handler()", "recv() failed");
+        xps_buffer_destroy(buffer);
         perror("Error message");
         return;
     }
 
     if(read_n==0){
         logger(LOG_INFO, "xps_connection_read_handler()", "peer closed the connection");
+        xps_buffer_destroy(buffer);
         xps_connection_destroy(connection);
         return;
     }
 
-    buff[read_n] = '\0';
+    buffer->len = read_n;
 
-    printf("[CLIENT MESSAGE] %s", buff);
+    printf("[CLIENT MESSAGE] %s", buffer->data);
     
-    strrev(buff);
+    strrev(buffer->data);
 
-    long bytes_written = 0;
-    long message_len = read_n;
-    while(bytes_written<message_len){
-        long write_n = send(connection->sock_fd, buff+bytes_written, message_len-bytes_written, 0);
-        if(write_n<0){
-            logger(LOG_ERROR, "xps_connection_read_handler()", "send() failed");
-            perror("Error message");
-            xps_connection_destroy(connection);
-            return;
-        }
-        bytes_written+=write_n;
+    xps_buffer_list_append(connection->write_buff_list, buffer);
+
+    logger(LOG_DEBUG, "connection_loop_read_handler()", "data read complete");
+}
+
+void connection_loop_write_handler(void *ptr){
+    assert(ptr!=NULL);
+    xps_connection_t *connection = ptr;
+
+    if(connection->write_buff_list->len==0){
+        return;
     }
 
+    xps_buffer_t *buffer = xps_buffer_list_read(connection->write_buff_list, connection->write_buff_list->len);
+    if(buffer==NULL){
+        logger(LOG_ERROR, "connection_loop_read_handler()", "xps_buffer_list_read() failed");
+        perror("Error message");
+        return;
+    }
+
+    ssize_t n = send(connection->sock_fd, buffer->data, buffer->len, 0);
+
+    if(n>=0){
+        xps_buffer_list_clear(connection->write_buff_list, n);
+        logger(LOG_DEBUG, "connection_loop_write_handler()", "sent %zd bytes", n);
+        return;
+    }
+
+    if(errno == EAGAIN || errno == EWOULDBLOCK){
+        logger(LOG_DEBUG, "connection_loop_write_handler()", "Send would block, try again later");
+        if(buffer->len==0){
+            xps_buffer_destroy(buffer);
+        }
+        return;
+    }
+
+    logger(LOG_ERROR, "connection_loop_write_handler()", "send() failed");
+    perror("Error message");
+    xps_connection_destroy(connection);
+}
+
+
+void connection_loop_close_handler(void *ptr){
+    assert(ptr!=NULL);
+    xps_connection_t *connection = ptr;
+    xps_connection_destroy(connection);
 }
