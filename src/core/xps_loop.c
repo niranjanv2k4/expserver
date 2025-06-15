@@ -123,9 +123,13 @@ int xps_loop_detach(xps_loop_t *loop, u_int fd){
 
 void xps_loop_run(xps_loop_t *loop){
     assert(loop!=NULL);
+
     while(1){
         logger(LOG_DEBUG, "xps_loop_run()", "epoll wait");
-        int n_events = epoll_wait(loop->epoll_fd, loop->epoll_events, MAX_EPOLL_EVENTS, -1);
+
+        int timeout = handle_connections(loop)?0:-1;
+        int n_events = epoll_wait(loop->epoll_fd, loop->epoll_events, MAX_EPOLL_EVENTS, timeout);
+        
         logger(LOG_DEBUG, "xps_loop_run()", "epoll wait over");
 
         logger(LOG_DEBUG, "xps_loop_run()", "handling %d events", n_events);
@@ -175,4 +179,36 @@ void xps_loop_run(xps_loop_t *loop){
             }
         }
     }
+}
+
+bool handle_connections(xps_loop_t *loop){
+    assert(loop!=NULL);
+
+    for(int i = 0; i<loop->core->connections.length; i++){
+        xps_connection_t *connection = loop->core->connections.data[i];
+        if(connection==NULL)
+            continue;
+
+        if(connection->read_ready==true){
+            connection->recv_handler(connection);
+            if(loop->core->connections.data[i]!=connection)
+                continue;
+        }
+
+        if(connection->write_ready==true && connection->write_buff_list->len>0)
+            connection->send_handler(connection);
+    }
+
+    for(int i = 0; i<loop->core->connections.length; i++){
+        xps_connection_t *connection = loop->core->connections.data[i];
+        if(connection==NULL)continue;
+
+        if(connection->read_ready == true)
+            return true;
+        
+        if(connection->write_ready == true && connection->write_buff_list->len>0)
+            return true;
+    }
+
+    return false;
 }

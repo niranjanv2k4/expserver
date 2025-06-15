@@ -57,7 +57,7 @@ xps_listener_t* xps_listener_create(xps_core_t *core, const char *host, u_int po
     listener->port = port;
     listener->sock_fd = sock_fd;
 
-    if(xps_loop_attach(core->loop, sock_fd, EPOLLIN, listener, listener_connection_handler, NULL, NULL)==E_FAIL){
+    if(xps_loop_attach(core->loop, sock_fd, EPOLLIN | EPOLLET, listener, listener_connection_handler, NULL, NULL)==E_FAIL){
         logger(LOG_ERROR, "xps_listener_create()", "falied to attach to loop");
         free(listener);
         close(sock_fd);
