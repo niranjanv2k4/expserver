@@ -54,12 +54,18 @@ typedef struct xps_connection_s xps_connection_t;
 typedef struct xps_buffer_s xps_buffer_t;
 typedef struct xps_buffer_list_s xps_buffer_list_t ;
 
+typedef struct xps_pipe_s xps_pipe_t;
+typedef struct xps_pipe_source_s xps_pipe_source_t;
+typedef struct xps_pipe_sink_s xps_pipe_sink_t;
+
+
 // Function typedefs
 typedef void (*xps_handler_t)(void *ptr);
 
 // xps headers
 #include "core/xps_core.h"
 #include "core/xps_loop.h"
+#include "core/xps_pipe.h"
 #include "network/xps_connection.h"
 #include "network/xps_listener.h"
 #include "utils/xps_logger.h"
