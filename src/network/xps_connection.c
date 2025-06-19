@@ -60,7 +60,7 @@ xps_connection_t *xps_connection_create(xps_core_t *core, u_int sock_fd){
 
     /*STAGE 6(doubt): string will be echoed back if EPOLLET flag is removed, but not if added, because when edge triggerd the socket become writable and fire the epoll even before the message is sent therfore the when the message is actually sent it won't trigger therefore no reponse will generated*/
 
-    if(xps_loop_attach(core->loop, sock_fd, EPOLLIN | EPOLLOUT | EPOLLET, connection, connection_source_handler, connection_sink_handler, connection_loop_close_handler)==E_FAIL){
+    if(xps_loop_attach(core->loop, sock_fd, EPOLLIN | EPOLLOUT , connection, connection_source_handler, connection_sink_handler, connection_loop_close_handler)==E_FAIL){
         logger(LOG_ERROR, "xps_connection_create()", "xps_loop_attach() failed");
         xps_pipe_source_destroy(source);
         xps_pipe_sink_destroy(sink);
@@ -137,7 +137,9 @@ void connection_source_handler(void *ptr){
 
     buffer->data[read_n] = '\0';
     printf("[CLIENT MESSAGE] %s", buffer->data);
-    strrev(buffer->data);
+
+    /*Commented out as a part of upstream module*/
+    // strrev(buffer->data);
 
 
     if(xps_pipe_source_write(source, buffer)!=E_SUCCESS){

@@ -67,7 +67,7 @@ void xps_core_start(xps_core_t *core){
 
     for(int port = 8001; port<=8004; port++){
         xps_listener_create(core, "127.0.0.1", port);
-        logger(LOG_INFO, "xps_core_create()", "Server listening on port %u", port);
+        logger(LOG_INFO, "xps_core_create()", "Server listening on [http://0.0.0.0:%u](http://0.0.0.0:%u/)", port, port);
     }
 
     xps_loop_run(core->loop);
