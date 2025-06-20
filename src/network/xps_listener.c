@@ -128,6 +128,7 @@ void listener_connection_handler(void *ptr){
         client->listener = listener;
 
         if(listener->port==8001){
+
             xps_connection_t *upstream_conn = xps_upstream_create(listener->core, "127.0.0.1", 3000);
             xps_pipe_t *client_to_upstream = xps_pipe_create(listener->core, DEFAULT_BUFFER_SIZE, client->source, upstream_conn->sink);
             xps_pipe_t *upstream_to_client = xps_pipe_create(listener->core, DEFAULT_BUFFER_SIZE, upstream_conn->source, client->sink);
@@ -138,6 +139,22 @@ void listener_connection_handler(void *ptr){
                 close(conn_sock_fd);
                 return;
             }
+        }
+        else if(listener->port==8002){
+
+            int error;
+            xps_file_t *file = xps_file_create(listener->core, "../public/sample.txt", &error);
+            
+            if(!xps_pipe_create(listener->core, DEFAULT_BUFFER_SIZE, file->source, client->sink)){
+                logger(LOG_ERROR, "listener_connection_handler()", "xps_pipe_create() failed");
+                perror("Error message");
+                return;
+            }
+            
+            /*Calling the file handler functions*/
+
+            file->source->handler_cb(file->source);
+            file->source->close_cb(file->source);
         }
         else{
             xps_pipe_create(listener->core, DEFAULT_BUFFER_SIZE, client->source, client->sink);
